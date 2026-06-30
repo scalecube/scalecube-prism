@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cache the local Maven repo explicitly (keyed on the poms), mirroring the other
+      # scalecube repos. This replaces setup-java's built-in `cache: maven`, whose restored
+      # cache had held a corrupt mockito-core jar that crashed the surefire fork at startup.
+      - uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          # Authenticate to GitHub Packages (scalecube-cluster and friends live there).
+          # Without this, resolution from maven.pkg.github.com returns error bodies that get
+          # saved as corrupt jars. Matches the other scalecube repos.
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
+      - name: Build, verify, and run the full test suite
+        # Includes the deterministic safety fuzzer, fault-injection tests, the real-transport
+        # quorum-election integration test, and all codec/registry/elector/persistence BDD tests.
+        run: mvn -B -ntp verify
+        env:
+          GITHUB_TOKEN: ${{ secrets.ORGANIZATION_TOKEN }}
+
+  spec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Model-check the TLA+ specs
+        # Downloads the TLA+ tools and runs TLC over the lease-election spec (AtMostOneLeader,
+        # AgreementPerEpoch) and the self-electing-quorum spec (safe config holds; the unsafe
+        # multi-member config is expected to produce a split-brain counterexample — see ADR-0015).
+        # Non-fatal if the tools are unavailable; the DST fuzzers are the gate.
+        continue-on-error: true
+        run: |
+          curl -sSL -o tla2tools.jar \
+            https://github.com/tlaplus/tlaplus/releases/latest/download/tla2tools.jar
+          cd prism-docs/spec
+          java -cp ../../tla2tools.jar tlc2.TLC LeaseElection.tla -config LeaseElection.cfg
+          java -cp ../../tla2tools.jar tlc2.TLC SelfElectingQuorum.tla -config SelfElectingQuorum.cfg
+          # Negative controls: each MUST find a counterexample, so invert its exit status.
+          if java -cp ../../tla2tools.jar tlc2.TLC SelfElectingQuorum.tla \
+              -config SelfElectingQuorum_unsafe.cfg; then
+            echo "ERROR: unsafe config did not produce the expected split-brain counterexample"; exit 1
+          else
+            echo "OK: unsafe config produced the expected AtMostOneLeader counterexample"
+          fi
+          if java -cp ../../tla2tools.jar tlc2.TLC SelfElectingQuorum.tla \
+              -config SelfElectingQuorum_nofence.cfg; then
+            echo "ERROR: nofence config did not produce the expected fencing-regression counterexample"; exit 1
+          else
+            echo "OK: nofence config produced the expected NoTokenRegression counterexample"
+          fi
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check documentation links
+        # Doc-honesty guard: every relative link in a tracked Markdown file (including links
+        # into source code) must resolve. Keeps the docs trustworthy as the code evolves — a
+        # dead link fails the build. External (http/https) links are not checked.
+        run: bash scripts/check-doc-links.sh

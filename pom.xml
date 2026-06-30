@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.scalecube</groupId>
+    <artifactId>scalecube-parent</artifactId>
+    <version>0.3.23</version>
+  </parent>
+
+  <artifactId>scalecube-prism-parent</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+  <name>${project.artifactId}</name>
+  <description>Tunable-consistency service registry and safe singleton elector built on scalecube-cluster (SWIM + gossip).</description>
+
+  <scm>
+    <url>https://github.com/scalecube/scalecube-prism</url>
+    <connection>scm:git:https://github.com/scalecube/scalecube-prism.git</connection>
+    <developerConnection>scm:git:https://github.com/scalecube/scalecube-prism.git</developerConnection>
+    <tag>HEAD</tag>
+  </scm>
+
+  <properties>
+    <scalecube-cluster.version>2.7.8</scalecube-cluster.version>
+    <distributionManagement.url>https://maven.pkg.github.com/scalecube/scalecube-prism</distributionManagement.url>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <!-- scalecube-cluster (L0 foundation) -->
+      <dependency>
+        <groupId>io.scalecube</groupId>
+        <artifactId>scalecube-cluster</artifactId>
+        <version>${scalecube-cluster.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.scalecube</groupId>
+        <artifactId>scalecube-cluster-api</artifactId>
+        <version>${scalecube-cluster.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.scalecube</groupId>
+        <artifactId>scalecube-cluster-testlib</artifactId>
+        <version>${scalecube-cluster.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.scalecube</groupId>
+        <artifactId>scalecube-transport-api</artifactId>
+        <version>${scalecube-cluster.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.scalecube</groupId>
+        <artifactId>scalecube-transport-netty</artifactId>
+        <version>${scalecube-cluster.version}</version>
+      </dependency>
+
+      <!-- internal modules -->
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>scalecube-prism-api</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>scalecube-prism-versioning</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>scalecube-prism-codec</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>scalecube-prism-registry</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>scalecube-prism-persistence</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>scalecube-prism-consensus</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>scalecube-prism-elector</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>scalecube-prism-sim</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>scalecube-prism-observability</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>scalecube-prism-runtime</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <modules>
+    <module>prism-api</module>
+    <module>prism-versioning</module>
+    <module>prism-codec</module>
+    <module>prism-registry</module>
+    <module>prism-persistence</module>
+    <module>prism-consensus</module>
+    <module>prism-elector</module>
+    <module>prism-sim</module>
+    <module>prism-observability</module>
+    <module>prism-runtime</module>
+    <module>prism-examples</module>
+    <module>prism-bench</module>
+    <module>prism-docs</module>
+  </modules>
+
+  <dependencies>
+    <!-- Tests (shared) -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!--
+        scalecube-parent's surefire argLine loads mockito-core as a -javaagent by its
+        local-repo path. prism uses no mockito, so that jar is never resolved and the
+        forked test VM fails at startup ("Error opening zip file or JAR manifest missing").
+        Override the argLine to drop the mockito javaagent while keeping the JDK exports.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <argLine combine.self="override">
+            --add-exports java.base/jdk.internal.misc=ALL-UNNAMED
+            --add-exports java.base/sun.nio.ch=ALL-UNNAMED
+          </argLine>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>
